@@ -1,31 +1,27 @@
 use carbon_raydium_amm_v4_decoder::{
     PROGRAM_ID as RAYDIUM_V4_PROGRAM_ID,
-    instructions::swap_base_in::{SwapBaseIn, SwapBaseInInstructionAccounts},
+    instructions::swap_base_out::{SwapBaseOut, SwapBaseOutInstructionAccounts},
 };
-use solana_program::example_mocks::solana_sdk::system_instruction;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::Signer,
 };
 use spl_associated_token_account::get_associated_token_address;
-use spl_token::instruction::sync_native;
 
 use crate::{config::PUBKEY, utils::blockhash::WSOL};
 
-pub trait SwapBaseInInstructionAccountsExt {
-    fn get_swap_base_in_ix(&self, buy_exact_in_param: SwapBaseIn) -> Instruction;
+pub trait SwapBaseOutInstructionAccountsExt {
+    fn get_swap_base_out_ix(&self, buy_exact_in_param: SwapBaseOut) -> Instruction;
     fn get_create_idempotent_ata_ix(
         &self,
         base_mint: Pubkey,
         quote_mint: Pubkey,
     ) -> Vec<Instruction>;
     fn get_create_ata_ix(&self) -> Instruction;
-    fn get_wrap_sol(&self, buy_exact_in_param: SwapBaseIn) -> Vec<Instruction>;
     fn get_close_wsol(&self) -> Instruction;
 }
 
-impl SwapBaseInInstructionAccountsExt for SwapBaseInInstructionAccounts {
+impl SwapBaseOutInstructionAccountsExt for SwapBaseOutInstructionAccounts {
     fn get_create_ata_ix(&self) -> Instruction {
         let create_ata_ix =
             spl_associated_token_account::instruction::create_associated_token_account(
@@ -62,15 +58,6 @@ impl SwapBaseInInstructionAccountsExt for SwapBaseInInstructionAccounts {
         vec![create_ata_base_ix, create_ata_quote_ix]
     }
 
-    fn get_wrap_sol(&self, buy_exact_in_param: SwapBaseIn) -> Vec<Instruction> {
-        let wsol_ata = get_associated_token_address(&PUBKEY, &WSOL);
-        let transfer_ix =
-            system_instruction::transfer(&PUBKEY, &wsol_ata, buy_exact_in_param.amount_in);
-        let wrap_ix = sync_native(&spl_token::ID, &wsol_ata).unwrap();
-
-        vec![transfer_ix, wrap_ix]
-    }
-
     fn get_close_wsol(&self) -> Instruction {
         let wsol_ata = get_associated_token_address(&PUBKEY, &WSOL);
 
@@ -81,13 +68,13 @@ impl SwapBaseInInstructionAccountsExt for SwapBaseInInstructionAccounts {
         create_ata_ix
     }
 
-    fn get_swap_base_in_ix(&self, buy_exact_in_param: SwapBaseIn) -> Instruction {
+    fn get_swap_base_out_ix(&self, buy_exact_in_param: SwapBaseOut) -> Instruction {
         let discriminator = [9];
         let mut data = Vec::new();
 
         data.extend_from_slice(&discriminator);
-        data.extend_from_slice(&buy_exact_in_param.amount_in.to_le_bytes());
-        data.extend_from_slice(&buy_exact_in_param.minimum_amount_out.to_le_bytes());
+        data.extend_from_slice(&buy_exact_in_param.max_amount_in.to_le_bytes());
+        data.extend_from_slice(&buy_exact_in_param.amount_out.to_le_bytes());
 
         let accounts = if let Some(amm_target_orders) = self.amm_target_orders {
             vec![
