@@ -50,3 +50,11 @@ pub static SLIPPAGE: Lazy<f64> = Lazy::new(|| {
     let parsed: f64 = raw.parse().expect("Failed to parse SLIPPAGE");
     parsed / 100.0 // convert percent to decimal (e.g., 1.0 -> 0.01)
 });
+
+pub static ENTRY_PERCENT: Lazy<f64> = Lazy::new(|| {
+    dotenv().ok(); // load .env if available
+
+    let raw = env::var("ENTRY_PERCENT").unwrap_or_else(|_| "100.0".to_string()); // default to "100.0"
+    let parsed: f64 = raw.parse().expect("Failed to parse ENTRY_PERCENT");
+    parsed // convert percent to decimal (e.g., 1.0 -> 0.01)
+});
