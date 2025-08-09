@@ -146,10 +146,10 @@ pub async fn main() -> CarbonResult<()> {
 fn display_pool_price_change(old: f64, new: f64) {
     if old > 0.0 {
         let percent = ((new - old) / old) * 100.0;
-        // println!(
-        //     "POOL_PRICE changed: old = {:.8}, new = {:.8}, change = {:+.4}%",
-        //     old, new, percent
-        // );
+        println!(
+            "POOL_PRICE changed: old = {:.8}, new = {:.8}, change = {:+.4}%",
+            old, new, percent
+        );
         if percent <= -*ENTRY_PERCENT {
             println!("ALERT: POOL_PRICE dropped more than {}%!", *ENTRY_PERCENT);
             tokio::spawn(async {
@@ -344,6 +344,10 @@ impl Processor for RaydiumV4Process {
                             &arranged.user_source_owner,
                             &Pubkey::from_str_const(&coin_info.1),
                         );
+                        let user_coin1_ata = get_associated_token_address(
+                            &arranged.user_source_owner,
+                            &Pubkey::from_str_const(&pc_info.1),
+                        );
 
                         let (
                             input_mint,
@@ -352,7 +356,7 @@ impl Processor for RaydiumV4Process {
                             output_reserve,
                             pre_input_reserve,
                             pre_output_reserve,
-                        ) = if user_coin_ata == arranged.user_source_token_account {
+                        ) = if (user_coin_ata == arranged.user_source_token_account) || (user_coin1_ata == arranged.user_destination_token_account) {
                             (
                                 coin_info.1,
                                 coin_info.0,
