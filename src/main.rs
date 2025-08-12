@@ -17,7 +17,7 @@ use {
     once_cell::sync::Lazy,
     raydium_amm_monitor::{
         config::{
-            init_jito, init_nozomi, init_zslot, BUY_SOL_AMOUNT, CONFIRM_SERVICE, ENTRY_PERCENT, JITO_CLIENT, NOZOMI_CLIENT, POOL_ADDRESS, PRIORITY_FEE, PUBKEY, RPC_CLIENT, SLIPPAGE, ZSLOT_CLIENT
+            init_jito, init_nozomi, init_zslot, AUTO_EXIT, BUY_SOL_AMOUNT, CONFIRM_SERVICE, ENTRY_PERCENT, ENTRY_SLIPPAGE, JITO_CLIENT, NOZOMI_CLIENT, POOL_ADDRESS, PRIORITY_FEE, PUBKEY, RPC_CLIENT, STOP_LOSS, TAKE_PROFIT, ZSLOT_CLIENT
         },
         instructions::{SwapBaseInInstructionAccountsExt, SwapBaseOutInstructionAccountsExt},
         service::Tips,
@@ -46,10 +46,11 @@ use {
 use chrono::Utc;
 
 static POOL_PRICE: Lazy<Arc<RwLock<Option<f64>>>> = Lazy::new(|| Arc::new(RwLock::new(None)));
-static LATEST_POOL_PRICE: Lazy<Arc<RwLock<Option<f64>>>> =
-    Lazy::new(|| Arc::new(RwLock::new(None)));
-static SWAP_BUY_IXS: Lazy<Arc<RwLock<Vec<Instruction>>>> =
-    Lazy::new(|| Arc::new(RwLock::new(vec![])));
+static LATEST_POOL_PRICE: Lazy<Arc<RwLock<Option<f64>>>> = Lazy::new(|| Arc::new(RwLock::new(None)));
+static SWAP_BUY_IXS: Lazy<Arc<RwLock<Vec<Instruction>>>> = Lazy::new(|| Arc::new(RwLock::new(vec![])));
+static IS_BOUGHT: Lazy<Arc<RwLock<bool>>> = Lazy::new(|| Arc::new(RwLock::new(false)));
+static BOUGHT_PRICE: Lazy<Arc<RwLock<Option<f64>>>> = Lazy::new(|| Arc::new(RwLock::new(None)));
+static BOUGHT_AT_TIME: Lazy<Arc<RwLock<Option<i64>>>> = Lazy::new(|| Arc::new(RwLock::new(None)));
 
 #[tokio::main]
 pub async fn main() -> CarbonResult<()> {
@@ -85,8 +86,11 @@ pub async fn main() -> CarbonResult<()> {
     println!("My Wallet: {}", *PUBKEY);
     println!("Purchase Amount: {} SOL", *BUY_SOL_AMOUNT as f64 / 10_f64.powf(9.0));
     println!("Pool Address: {}", *POOL_ADDRESS);
-    println!("Entry Percent: {} %", *ENTRY_PERCENT);
-    println!("Slippage: {} %", *SLIPPAGE * 100.0);
+    println!("Entry Percent: {}%", *ENTRY_PERCENT);
+    println!("Entry Slippage: {}%", *ENTRY_SLIPPAGE);
+    println!("Stop Loss: {}%", *STOP_LOSS);
+    println!("Take Profit: {}%", *TAKE_PROFIT);
+    println!("Auto Exit: {} seconds", *AUTO_EXIT);
 
     // Spawn a task to store pool_price_sol every 400ms
 
@@ -145,18 +149,62 @@ pub async fn main() -> CarbonResult<()> {
 
 fn display_pool_price_change(old: f64, new: f64) {
     if old > 0.0 {
-        let percent = ((new - old) / old) * 100.0;
-        println!(
-            "POOL_PRICE changed: old = {:.8}, new = {:.8}, change = {:+.4}%",
-            old, new, percent
-        );
-        if percent <= -*ENTRY_PERCENT {
-            println!("ALERT: POOL_PRICE dropped more than {}%!", *ENTRY_PERCENT);
-            tokio::spawn(async {
-                build_and_submit_swap_transaction().await;
-                panic!("ALERT: POOL_PRICE dropped more than {}%!", *ENTRY_PERCENT);
-            });
-        }
+        tokio::spawn({
+            let bought = IS_BOUGHT.clone();
+            
+            async move {
+                let bought = *bought.read().await;
+
+                if !bought {
+                    let new_clone = new.clone();
+                    let percent = ((new_clone - old) / old) * 100.0;
+                    println!(
+                        "POOL_PRICE changed: old = {:.8}, new = {:.8}, change = {:+.4}%",
+                        old, new_clone, percent
+                    );
+                    if percent <= -*ENTRY_PERCENT {
+                        println!("ALERT: POOL_PRICE dropped more than {}%!", *ENTRY_PERCENT);
+                        tokio::spawn(async move {
+                            let new_price_clone = new_clone.clone();
+
+                            let mut has_bought = IS_BOUGHT.write().await;
+                            *has_bought = true;
+
+                            let mut bought_price = BOUGHT_PRICE.write().await;
+                            *bought_price = Some(new_price_clone);
+
+                            let mut bought_at = BOUGHT_AT_TIME.write().await;
+                            let current_time = Utc::now().timestamp_millis();
+                            *bought_at = Some(current_time);
+            
+                            build_and_submit_swap_transaction().await;
+                        });
+                    }
+                } else {
+                    let new_clone = new.clone();
+                    let bought_price = BOUGHT_PRICE.write().await;
+                    let old_bought_price = bought_price.clone();
+                    let percent = ((new_clone - old_bought_price.unwrap_or(0.0)) / old_bought_price.unwrap_or(0.0)) * 100.0;
+                    let bought_at = BOUGHT_AT_TIME.write().await;
+                    let current_time = Utc::now().timestamp_millis();
+                    
+                    // Check how long it flowed from bought_at
+                    if percent >= *TAKE_PROFIT {
+                        println!("ALERT: POOL_PRICE increased more than {}%!", percent);
+                        
+                    } else if percent <= *STOP_LOSS {
+                        println!("ALERT: POOL_PRICE decreased more than {}%!", percent);
+                        
+                    } else if let Some(bought_at_time) = *bought_at {
+                        if current_time - bought_at_time > (*AUTO_EXIT * 1000).try_into().unwrap() {
+                            println!("ALERT: AUTO EXIT triggered after {} seconds!", *AUTO_EXIT);
+                            
+                        }
+                    }
+                }
+            }
+            
+        });
     }
 }
 
@@ -462,7 +510,7 @@ impl Processor for RaydiumV4Process {
                             let token_balance = match RPC_CLIENT
                                 .get_token_account_balance_with_commitment(
                                     &arranged.user_source_token_account,
-                                    CommitmentConfig::confirmed(),
+                                    CommitmentConfig::processed(),
                                 )
                                 .await
                             {
@@ -489,7 +537,7 @@ impl Processor for RaydiumV4Process {
                             input_reserve.parse::<f64>().expect("Invalid input_reserve");
 
                         let amount_out =
-                            0.997 * (1.0 - *SLIPPAGE) * (amount_in as f64) * output_reserve_val
+                            0.997 * (1.0 - *ENTRY_SLIPPAGE) * (amount_in as f64) * output_reserve_val
                                 / (input_reserve_val + amount_in as f64);
 
                         let buy_exact_in_param = SwapBaseIn {

@@ -43,18 +43,49 @@ pub static BUY_SOL_AMOUNT: Lazy<u64> = Lazy::new(|| {
     (buy_sol_amount * 10_f64.powf(9.0)) as u64
 });
 
-pub static SLIPPAGE: Lazy<f64> = Lazy::new(|| {
+pub static ENTRY_SLIPPAGE: Lazy<f64> = Lazy::new(|| {
     dotenv().ok(); // load .env if available
 
-    let raw = env::var("SLIPPAGE").unwrap_or_else(|_| "1.0".to_string()); // default to "1.0"
-    let parsed: f64 = raw.parse().expect("Failed to parse SLIPPAGE");
+    let raw = env::var("ENTRY_SLIPPAGE").unwrap_or_else(|_| "1.0".to_string()); // default to "1.0%"
+    let parsed: f64 = raw.parse().expect("Failed to parse ENTRY_SLIPPAGE");
+    parsed / 100.0 // convert percent to decimal (e.g., 1.0 -> 0.01)
+});
+
+pub static EXIT_SLIPPAGE: Lazy<f64> = Lazy::new(|| {
+    dotenv().ok(); // load .env if available
+
+    let raw = env::var("EXIT_SLIPPAGE").unwrap_or_else(|_| "1.0".to_string()); // default to "1.0%"
+    let parsed: f64 = raw.parse().expect("Failed to parse EXIT_SLIPPAGE");
     parsed / 100.0 // convert percent to decimal (e.g., 1.0 -> 0.01)
 });
 
 pub static ENTRY_PERCENT: Lazy<f64> = Lazy::new(|| {
     dotenv().ok(); // load .env if available
 
-    let raw = env::var("ENTRY_PERCENT").unwrap_or_else(|_| "100.0".to_string()); // default to "100.0"
+    let raw = env::var("ENTRY_PERCENT").unwrap_or_else(|_| "100.0".to_string()); // default to "100.0%"
     let parsed: f64 = raw.parse().expect("Failed to parse ENTRY_PERCENT");
     parsed // convert percent to decimal (e.g., 1.0 -> 0.01)
+});
+
+pub static TAKE_PROFIT: Lazy<f64> = Lazy::new(|| {
+    dotenv().ok(); // load .env if available
+
+    let raw = env::var("TAKE_PROFIT").unwrap_or_else(|_| "100.0".to_string()); // default to "100.0%"
+    let parsed: f64 = raw.parse().expect("Failed to parse TAKE_PROFIT");
+    parsed // convert percent to decimal (e.g., 1.0 -> 0.01)
+});
+
+pub static STOP_LOSS: Lazy<f64> = Lazy::new(|| {
+    dotenv().ok(); // load .env if available
+
+    let raw = env::var("STOP_LOSS").unwrap_or_else(|_| "100.0".to_string()); // default to "100.0%"
+    let parsed: f64 = raw.parse().expect("Failed to parse STOP_LOSS");
+    parsed // convert percent to decimal (e.g., 1.0 -> 0.01)
+});
+
+pub static AUTO_EXIT: Lazy<u64> = Lazy::new(|| {
+    dotenv().ok(); // load .env if available
+
+    let raw = env::var("AUTO_EXIT").unwrap_or_else(|_| "60".to_string()); // default to "60 seconds"
+    raw.parse::<u64>().expect("Failed to parse AUTO_EXIT")
 });
