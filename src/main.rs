@@ -101,7 +101,7 @@ pub async fn main() -> CarbonResult<()> {
         let pool_price = POOL_PRICE.clone();
 
         async move {
-            let mut ticker = interval(Duration::from_millis(2000));
+            let mut ticker = interval(Duration::from_millis(400));
             loop {
                 ticker.tick().await;
                 let mut latest = pool_price.write().await;
@@ -189,6 +189,10 @@ fn display_pool_price_change(old: f64, new: f64) {
                     let percent = ((new_clone - old_bought_price.unwrap_or(0.0))
                         / old_bought_price.unwrap_or(0.0))
                         * 100.0;
+                    if let Some(old_price) = old_bought_price {
+
+                        println!("POOL_PRICE changed : buy price = {:.8}, current price = {:.8}, change = {:.8}", old_price, new_clone, percent);
+                    }
                     let bought_at = BOUGHT_AT_TIME.write().await;
                     let current_time = Utc::now().timestamp_millis();
 
@@ -197,7 +201,7 @@ fn display_pool_price_change(old: f64, new: f64) {
                         println!("ALERT: POOL_PRICE increased more than {}%!", percent);
                         build_and_submit_swap_transaction().await;
                         process::exit(0);
-                    } else if percent <= *STOP_LOSS {
+                    } else if percent <= -*STOP_LOSS {
                         println!("ALERT: POOL_PRICE decreased more than {}%!", percent);
                         build_and_submit_swap_transaction().await;
                         process::exit(0);
