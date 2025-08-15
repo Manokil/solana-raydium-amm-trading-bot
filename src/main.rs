@@ -28,7 +28,7 @@ use {
         },
     },
     serde_json::json,
-    solana_sdk::{commitment_config::CommitmentConfig, instruction::Instruction, pubkey::Pubkey},
+    solana_sdk::{commitment_config::CommitmentConfig, exit, instruction::Instruction, pubkey::Pubkey},
     spl_associated_token_account::get_associated_token_address,
     std::{
         collections::{HashMap, HashSet}, env, process, sync::Arc, time::Duration
@@ -331,7 +331,11 @@ impl Processor for RaydiumV4Process {
         _metrics: Arc<MetricsCollection>,
     ) -> CarbonResult<()> {
         let signature = metadata.transaction_metadata.signature;
-
+        println!("metadata: {:#?}", metadata);
+        //println!("instruction: {:#?}", instruction);
+        //println!("nested_instructions: {:?}", _nested_instructions);
+        //println!("instructions: {:#?}", _instructions);
+       
         let static_account_keys = metadata.transaction_metadata.message.static_account_keys();
         let writable_account_keys = &metadata.transaction_metadata.meta.loaded_addresses.writable;
         let readonly_account_keys = &metadata.transaction_metadata.meta.loaded_addresses.readonly;
@@ -341,6 +345,7 @@ impl Processor for RaydiumV4Process {
         account_keys.extend(static_account_keys);
         account_keys.extend(writable_account_keys);
         account_keys.extend(readonly_account_keys);
+        println!("account_keys: {:#?}", account_keys);
 
         let instruction_clone: DecodedInstruction<RaydiumAmmV4Instruction> = instruction.clone();
 
