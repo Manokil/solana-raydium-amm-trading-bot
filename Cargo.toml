@@ -19,7 +19,7 @@ yellowstone-grpc-proto = "6.1.0"
 borsh = "0.10.3"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
-serde = { version = "1.0", features = ["derive"], optional = true }
+serde = { version = "1.0", features = ["derive"] }
 serde-big-array = { version = "0.5", optional = true }
 serde_with = { version = "3.12", optional = true }
 solana-program = "2.1.14"
@@ -42,10 +42,16 @@ spl-token = "8.0.0"
 chrono = "0.4.41"
 once_cell = "1.21.3"
 solana-transaction-status-client-types = "2.2"
+mongodb = "3.2.4"
+bson = "2"
+libc = "0.2"
 
 futures = "0.3.31"
 ping = "0.6.1"
 dotenvy = "0.15.7"
+
+# Backend dependencies
+hyper = { version = "0.14", features = ["full"] }
 
 [dependencies.rustls]
 default-features = false
