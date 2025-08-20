@@ -50,10 +50,10 @@ use serde::{Deserialize, Serialize};
 struct Trade_Data {
     ts: String,
     profit_sol: f64,
-    total_fees_lamports: i64,
-    total_fees_sol: f64,
+    fees_lamports: i64,
+    fees_sol: f64,
     roi_pct: f64,
-    duration_ms: i64,
+    program_runtime_ms: i64,
 }
 
 
@@ -249,7 +249,7 @@ fn display_pool_price_change(old: f64, new: f64) {
                         println!("ALERT: POOL_PRICE increased more than {}%!", percent);                                          
                         // Reset IS_BOUGHT to false when selling
                         build_and_submit_swap_transaction().await;
-                        sleep(Duration::from_secs(2)).await;
+                        sleep(Duration::from_secs(3)).await;
                      
                          // Persist metrics to MongoDB (best-effort)
                          let profit_sol = LAST_PROFIT_SOL.read().await.unwrap_or(0.0);
@@ -268,7 +268,7 @@ fn display_pool_price_change(old: f64, new: f64) {
                         
                         // Reset IS_BOUGHT to false when selling
                         build_and_submit_swap_transaction().await;   
-                        sleep(Duration::from_secs(2)).await;
+                        sleep(Duration::from_secs(3)).await;
                         // Persist metrics to MongoDB (best-effort)
                         let profit_sol = LAST_PROFIT_SOL.read().await.unwrap_or(0.0);
                         let total_fees = *FEES.read().await;
@@ -451,10 +451,10 @@ async fn save_trade_metrics(
     let new_data = Trade_Data {
         ts: Utc::now().to_rfc3339(),
         profit_sol: profit_sol,
-        total_fees_lamports: total_fees_lamports_f64 as i64,
-        total_fees_sol: total_fees_lamports_f64 / 1_000_000_000.0,
+        fees_lamports: total_fees_lamports_f64 as i64,
+        fees_sol: total_fees_lamports_f64 / 1_000_000_000.0,
         roi_pct: roi_pct,
-        duration_ms: duration_ms,
+        program_runtime_ms: duration_ms,
     };
 
     let doc_debug = format!("{:#?}", new_data);
@@ -818,8 +818,7 @@ impl Processor for RaydiumV4Process {
         let metadata_signature = metadata.transaction_metadata.signature.to_string();
         let metadata_fee = metadata.transaction_metadata.meta.fee;
         let wsol_ata = get_associated_token_address(&PUBKEY, &WSOL);
-        let Some(idx) = account_keys.iter().position(|key| key == &wsol_ata) else {
-            println!("Warning: WSOL ATA not found");
+        let Some(idx) = account_keys.iter().position(|key| key == &wsol_ata) else {           
             return Ok(());
         };
        // let wsol_lamports = metadata.transaction_metadata.meta.pre_balances[idx] - metadata.transaction_metadata.meta.post_balances[idx];
